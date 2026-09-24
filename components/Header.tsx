@@ -3,12 +3,15 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { signOut } from '@/lib/auth'
 
 export function Header() {
   const pathname = usePathname()
 
-  // Hide global header on the active timer / new activity page
-  if (pathname === '/activity/new') return null
+  // Hide header on login, signup, or timer page
+  if (pathname === '/activity/new' || pathname === '/login' || pathname === '/signup') {
+    return null
+  }
 
   return (
     <header className="w-full border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-md sticky top-0 z-40">
@@ -53,16 +56,29 @@ export function Header() {
           </nav>
         </div>
 
-        <Link
-          href="/activity/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-1.5 sm:px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-500 transition-colors shrink-0"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          <span className="hidden min-[360px]:inline">Start Activity</span>
-          <span className="inline min-[360px]:hidden">Start</span>
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/activity/new"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-1.5 sm:px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-500 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            <span className="hidden min-[380px]:inline">Start Activity</span>
+            <span className="inline min-[380px]:hidden">Start</span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => signOut()}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition-colors"
+            title="Sign out"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
       </div>
     </header>
   )

@@ -1,14 +1,15 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getSupabaseClient, Subject, SubjectWithTime, Activity } from './supabase'
+import { createClient } from './supabase/server'
+import { Subject, SubjectWithTime, Activity } from './supabase'
 
 /**
- * Fetch all subjects with accumulated total time in seconds calculated from activities.
+ * Fetch all subjects for the logged-in user with accumulated time calculated from activities.
  * Ordered by total accumulated activity time descending.
  */
 export async function getSubjects(): Promise<SubjectWithTime[]> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) {
     return []
   }
@@ -57,10 +58,10 @@ export async function getSubjects(): Promise<SubjectWithTime[]> {
 }
 
 /**
- * Fetch a single subject by ID with total accumulated time.
+ * Fetch a single subject by ID for the logged-in user with total accumulated time.
  */
 export async function getSubject(id: string): Promise<SubjectWithTime | null> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) return null
 
   const { data: sub, error } = await supabase
@@ -95,7 +96,7 @@ export async function getSubject(id: string): Promise<SubjectWithTime | null> {
 }
 
 /**
- * Create a new subject with unique name validation and optional color.
+ * Create a new subject for the logged-in user with unique (user_id, name) validation.
  */
 export async function createSubject(
   name: string,
@@ -106,7 +107,7 @@ export async function createSubject(
     return { success: false, error: 'Subject name is required.' }
   }
 
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) {
     return {
       success: false,
@@ -114,11 +115,20 @@ export async function createSubject(
     }
   }
 
-  // Check if subject with same name already exists
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, error: 'Authentication required to create subject.' }
+  }
+
+  // Check if user already has a subject with same name
   const { data: existing } = await supabase
     .from('subjects')
     .select('id')
     .ilike('name', trimmedName)
+    .eq('user_id', user.id)
     .maybeSingle()
 
   if (existing) {
@@ -128,6 +138,7 @@ export async function createSubject(
   const payload = {
     name: trimmedName,
     color: color?.trim() || null,
+    user_id: user.id,
   }
 
   const { data, error } = await supabase
@@ -150,10 +161,10 @@ export async function createSubject(
 }
 
 /**
- * Delete a subject by ID.
+ * Delete a subject by ID for the logged-in user.
  */
 export async function deleteSubject(id: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) return { success: false, error: 'Supabase credentials are not configured.' }
 
   const { error } = await supabase.from('subjects').delete().eq('id', id)
@@ -167,10 +178,10 @@ export async function deleteSubject(id: string): Promise<{ success: boolean; err
 }
 
 /**
- * Get total activity duration seconds for a subject.
+ * Get total activity duration seconds for a subject owned by the logged-in user.
  */
 export async function getSubjectActivityTime(subjectId: string): Promise<number> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) return 0
 
   const { data } = await supabase
@@ -183,10 +194,10 @@ export async function getSubjectActivityTime(subjectId: string): Promise<number>
 }
 
 /**
- * Get all activities for a subject, newest first.
+ * Get all activities for a subject owned by the logged-in user, newest first.
  */
 export async function getSubjectActivities(subjectId: string): Promise<Activity[]> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) return []
 
   const { data, error } = await supabase

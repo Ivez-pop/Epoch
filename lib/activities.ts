@@ -1,13 +1,14 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getSupabaseClient, Activity, CreateActivityInput } from './supabase'
+import { createClient } from './supabase/server'
+import { Activity, CreateActivityInput } from './supabase'
 
 /**
- * Server action to fetch all activities, newest first, including associated Subject.
+ * Server action to fetch all activities for the logged-in user, newest first.
  */
 export async function getActivities(): Promise<Activity[]> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) {
     return []
   }
@@ -26,10 +27,10 @@ export async function getActivities(): Promise<Activity[]> {
 }
 
 /**
- * Server action to fetch a single activity by ID including associated Subject.
+ * Server action to fetch a single activity by ID for the logged-in user.
  */
 export async function getActivity(id: string): Promise<Activity | null> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) {
     return null
   }
@@ -49,17 +50,25 @@ export async function getActivity(id: string): Promise<Activity | null> {
 }
 
 /**
- * Server action to create a new activity record. Requires subject_id for new activities.
+ * Server action to create a new activity record attached to current authenticated user.
  */
 export async function createActivity(
   input: CreateActivityInput
 ): Promise<{ success: boolean; data?: Activity; error?: string }> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) {
     return {
       success: false,
-      error: 'Supabase credentials are not configured. Please populate NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local',
+      error: 'Supabase credentials are not configured.',
     }
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, error: 'Authentication required to create activity.' }
   }
 
   if (!input.subject_id) {
@@ -73,6 +82,7 @@ export async function createActivity(
     title: input.title?.trim() || null,
     description: input.description?.trim() || null,
     subject_id: input.subject_id,
+    user_id: user.id,
   }
 
   const { data, error } = await supabase
@@ -88,6 +98,7 @@ export async function createActivity(
 
   revalidatePath('/')
   revalidatePath('/subjects')
+  revalidatePath('/history')
   if (input.subject_id) {
     revalidatePath(`/subjects/${input.subject_id}`)
   }
@@ -107,7 +118,7 @@ export async function updateActivity(
     description?: string | null
   }
 ): Promise<{ success: boolean; data?: Activity; error?: string }> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) {
     return { success: false, error: 'Supabase credentials are not configured.' }
   }
@@ -137,6 +148,7 @@ export async function updateActivity(
   revalidatePath(`/activity/${id}`)
   revalidatePath('/')
   revalidatePath('/subjects')
+  revalidatePath('/history')
   if (input.subject_id) {
     revalidatePath(`/subjects/${input.subject_id}`)
   }
@@ -148,7 +160,7 @@ export async function updateActivity(
  * Server action to permanently delete an activity by ID.
  */
 export async function deleteActivity(id: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) {
     return { success: false, error: 'Supabase credentials are not configured.' }
   }
@@ -169,6 +181,7 @@ export async function deleteActivity(id: string): Promise<{ success: boolean; er
 
   revalidatePath('/')
   revalidatePath('/subjects')
+  revalidatePath('/history')
   if (activity?.subject_id) {
     revalidatePath(`/subjects/${activity.subject_id}`)
   }

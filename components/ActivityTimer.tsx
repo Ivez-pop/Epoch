@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { formatTimerDisplay } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 interface StoppedActivityData {
   started_at: string
@@ -13,49 +14,66 @@ interface ActivityTimerProps {
   onStop: (data: StoppedActivityData) => void
 }
 
-const TIMER_STORAGE_KEY = 'epoch_active_timer'
-
 export function ActivityTimer({ onStop }: ActivityTimerProps) {
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [startedAtIso, setStartedAtIso] = useState<string>('')
   const [elapsedMs, setElapsedMs] = useState<number>(0)
+  const [storageKey, setStorageKey] = useState<string>('epoch_active_timer_anon')
 
-  // Initialize or restore timer timestamp from localStorage
+  // Initialize user-namespaced active timer
   useEffect(() => {
-    let startTimestamp: number
-    let isoString: string
+    async function initTimer() {
+      const supabase = createClient()
+      let key = 'epoch_active_timer_anon'
 
-    try {
-      const stored = localStorage.getItem(TIMER_STORAGE_KEY)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (parsed.startedAt && parsed.startedAtIso) {
-          startTimestamp = parsed.startedAt
-          isoString = parsed.startedAtIso
+      if (supabase) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          key = `epoch_active_timer_${user.id}`
+        }
+      }
+
+      setStorageKey(key)
+
+      let startTimestamp: number
+      let isoString: string
+
+      try {
+        const stored = localStorage.getItem(key)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed.startedAt && parsed.startedAtIso) {
+            startTimestamp = parsed.startedAt
+            isoString = parsed.startedAtIso
+          } else {
+            startTimestamp = Date.now()
+            isoString = new Date().toISOString()
+            localStorage.setItem(
+              key,
+              JSON.stringify({ startedAt: startTimestamp, startedAtIso: isoString })
+            )
+          }
         } else {
           startTimestamp = Date.now()
           isoString = new Date().toISOString()
           localStorage.setItem(
-            TIMER_STORAGE_KEY,
+            key,
             JSON.stringify({ startedAt: startTimestamp, startedAtIso: isoString })
           )
         }
-      } else {
+      } catch {
         startTimestamp = Date.now()
         isoString = new Date().toISOString()
-        localStorage.setItem(
-          TIMER_STORAGE_KEY,
-          JSON.stringify({ startedAt: startTimestamp, startedAtIso: isoString })
-        )
       }
-    } catch {
-      startTimestamp = Date.now()
-      isoString = new Date().toISOString()
+
+      setStartedAt(startTimestamp)
+      setStartedAtIso(isoString)
+      setElapsedMs(Date.now() - startTimestamp)
     }
 
-    setStartedAt(startTimestamp)
-    setStartedAtIso(isoString)
-    setElapsedMs(Date.now() - startTimestamp)
+    initTimer()
   }, [])
 
   // Timer loop based strictly on timestamp comparison (Date.now() - startedAt)
@@ -97,7 +115,7 @@ export function ActivityTimer({ onStop }: ActivityTimerProps) {
     const durationSeconds = Math.max(1, Math.floor((now.getTime() - startedAt) / 1000))
 
     try {
-      localStorage.removeItem(TIMER_STORAGE_KEY)
+      localStorage.removeItem(storageKey)
     } catch {
       // ignore
     }

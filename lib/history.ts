@@ -1,6 +1,7 @@
 'use server'
 
-import { getSupabaseClient, Activity } from './supabase'
+import { createClient } from './supabase/server'
+import { Activity } from './supabase'
 
 export interface DailyActivitySummary {
   date: string // YYYY-MM-DD
@@ -34,10 +35,10 @@ function getLocalDateString(isoString: string): string {
 }
 
 /**
- * Fetch daily activity aggregation map for a specific calendar year.
+ * Fetch daily activity aggregation map for the logged-in user for a specific calendar year.
  */
 export async function getActivityHistory(year: number): Promise<Record<string, DailyActivitySummary>> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase) return {}
 
   // Fetch activities with a 1-day buffer on each side to account for timezone offsets
@@ -78,7 +79,7 @@ export async function getActivityHistory(year: number): Promise<Record<string, D
 }
 
 /**
- * Compute summary statistics for a given calendar year.
+ * Compute summary statistics for the logged-in user for a given calendar year.
  */
 export async function getYearActivitySummary(year: number): Promise<YearActivitySummary> {
   const historyMap = await getActivityHistory(year)
@@ -115,13 +116,12 @@ export async function getYearActivitySummary(year: number): Promise<YearActivity
 }
 
 /**
- * Fetch all activities starting on a specific local calendar date (YYYY-MM-DD), newest first.
+ * Fetch all activities starting on a specific local calendar date (YYYY-MM-DD) for the logged-in user.
  */
 export async function getActivitiesForDate(dateStr: string): Promise<Activity[]> {
-  const supabase = getSupabaseClient()
+  const supabase = await createClient()
   if (!supabase || !dateStr) return []
 
-  // Fetch activities around target date and filter locally by local YYYY-MM-DD
   const targetDate = new Date(dateStr)
   if (isNaN(targetDate.getTime())) return []
 
@@ -140,7 +140,6 @@ export async function getActivitiesForDate(dateStr: string): Promise<Activity[]>
     return []
   }
 
-  // Filter precisely by local date string
   const matching = (data as Activity[]).filter((act) => getLocalDateString(act.started_at) === dateStr)
   return matching
 }
