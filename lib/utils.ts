@@ -61,3 +61,40 @@ export function formatTimerDisplay(elapsedMs: number): string {
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
 }
+
+export function formatTimeRange(startedAt: string, endedAt: string | null): string {
+  if (!startedAt) return ''
+  const start = new Date(startedAt)
+  if (isNaN(start.getTime())) return ''
+
+  const startTimeStr = start.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+
+  if (!endedAt) return startTimeStr
+
+  const end = new Date(endedAt)
+  if (isNaN(end.getTime())) return startTimeStr
+
+  const endTimeStr = end.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+
+  return `${startTimeStr} → ${endTimeStr}`
+}
+
+export function formatFullDate(dateString: string): string {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return ''
+
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
