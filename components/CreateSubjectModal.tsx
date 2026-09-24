@@ -98,13 +98,13 @@ export function CreateSubjectModal({ isOpen, onClose, onSuccess }: CreateSubject
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6 shadow-2xl">
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-800">
           <h3 className="text-lg font-bold text-zinc-100">Create Subject</h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="text-zinc-400 hover:text-zinc-200 transition-colors p-1"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -131,19 +131,19 @@ export function CreateSubjectModal({ isOpen, onClose, onSuccess }: CreateSubject
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Kafka"
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors"
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-base sm:text-sm text-zinc-100 placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-200 mb-2">Color</label>
-            <div className="flex flex-wrap items-center gap-2.5 mb-3">
+            <label className="block text-sm font-medium text-zinc-200 mb-2.5">Color</label>
+            <div className="flex flex-wrap items-center gap-3 mb-2">
               {COLOR_PRESETS.map((preset) => (
                 <button
                   key={preset.hex}
                   type="button"
                   onClick={() => setColor(preset.hex)}
-                  className={`w-7 h-7 rounded-full transition-transform flex items-center justify-center ${
+                  className={`w-9 h-9 sm:w-8 sm:h-8 rounded-full transition-transform flex items-center justify-center touch-manipulation ${
                     color === preset.hex ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-zinc-900' : 'hover:scale-105'
                   }`}
                   style={{ backgroundColor: preset.hex }}
@@ -155,10 +155,10 @@ export function CreateSubjectModal({ isOpen, onClose, onSuccess }: CreateSubject
                   type="color"
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
-                  className="w-7 h-7 rounded-full cursor-pointer opacity-0 absolute inset-0"
+                  className="w-9 h-9 sm:w-8 sm:h-8 rounded-full cursor-pointer opacity-0 absolute inset-0"
                 />
                 <div
-                  className="w-7 h-7 rounded-full border border-dashed border-zinc-600 flex items-center justify-center text-xs text-zinc-400"
+                  className="w-9 h-9 sm:w-8 sm:h-8 rounded-full border border-dashed border-zinc-600 flex items-center justify-center text-xs text-zinc-400"
                   style={{ backgroundColor: color }}
                   title="Custom Color"
                 />
@@ -171,14 +171,14 @@ export function CreateSubjectModal({ isOpen, onClose, onSuccess }: CreateSubject
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors min-h-[44px]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-xl bg-orange-600 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-50 transition-colors"
+              className="rounded-xl bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-50 transition-colors min-h-[44px]"
             >
               {isSubmitting ? 'Creating...' : 'Create'}
             </button>

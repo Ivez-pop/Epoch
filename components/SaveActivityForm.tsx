@@ -151,8 +151,8 @@ export function SaveActivityForm({ activityData, onDiscard }: SaveActivityFormPr
 
   return (
     <>
-      <div className="w-full max-w-lg mx-auto rounded-2xl border border-zinc-800 bg-zinc-900/90 p-6 md:p-8 shadow-2xl backdrop-blur-xl">
-        <div className="flex items-center justify-between pb-6 mb-6 border-b border-zinc-800">
+      <div className="w-full max-w-lg mx-auto rounded-2xl border border-zinc-800 bg-zinc-900/90 p-5 sm:p-8 shadow-2xl backdrop-blur-xl">
+        <div className="flex items-center justify-between pb-5 mb-6 border-b border-zinc-800">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-zinc-100">Save Activity</h2>
             <p className="text-xs text-zinc-400 mt-1">Review details before saving to your feed</p>
@@ -179,7 +179,7 @@ export function SaveActivityForm({ activityData, onDiscard }: SaveActivityFormPr
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="text-xs text-orange-400 hover:text-orange-300 font-medium transition-colors"
+                className="text-xs text-orange-400 hover:text-orange-300 font-medium transition-colors py-1"
               >
                 + Create new subject
               </button>
@@ -192,7 +192,7 @@ export function SaveActivityForm({ activityData, onDiscard }: SaveActivityFormPr
                 onChange={handleSelectChange}
                 className={`w-full appearance-none rounded-xl border ${
                   validationError ? 'border-red-500/80 bg-red-950/20' : 'border-zinc-800 bg-zinc-950'
-                } px-4 py-3 text-sm text-zinc-100 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors pr-10`}
+                } px-4 py-3 text-base sm:text-sm text-zinc-100 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors pr-10 min-h-[48px]`}
               >
                 <option value="" disabled>
                   Select subject ▼
@@ -240,7 +240,7 @@ export function SaveActivityForm({ activityData, onDiscard }: SaveActivityFormPr
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Consumer Rebalancing"
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors"
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-base sm:text-sm text-zinc-100 placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors min-h-[48px]"
             />
           </div>
 
@@ -255,7 +255,7 @@ export function SaveActivityForm({ activityData, onDiscard }: SaveActivityFormPr
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What did you work on?"
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors resize-none"
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-base sm:text-sm text-zinc-100 placeholder-zinc-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors resize-none"
             />
           </div>
 
@@ -265,7 +265,7 @@ export function SaveActivityForm({ activityData, onDiscard }: SaveActivityFormPr
               type="button"
               onClick={handleDiscard}
               disabled={isSubmitting}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-5 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-5 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors min-h-[44px]"
             >
               Discard
             </button>
@@ -273,7 +273,7 @@ export function SaveActivityForm({ activityData, onDiscard }: SaveActivityFormPr
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 disabled:opacity-50 transition-colors min-h-[44px]"
             >
               {isSubmitting ? (
                 <>
