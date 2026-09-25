@@ -280,6 +280,13 @@ export function HistoryView({
                   : 'No activities'}
               </span>
             </div>
+
+            <Link
+              href={`/?from=${selectedDate}&to=${selectedDate}`}
+              className="text-xs font-medium text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1 shrink-0"
+            >
+              View in feed &rarr;
+            </Link>
           </div>
 
           {dateActivities.length === 0 ? (
