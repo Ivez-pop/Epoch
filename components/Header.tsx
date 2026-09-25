@@ -31,7 +31,7 @@ export function Header() {
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
               }`}
             >
-              Feed
+              Activity
             </Link>
             <Link
               href="/subjects"
@@ -52,6 +52,16 @@ export function Header() {
               }`}
             >
               History
+            </Link>
+            <Link
+              href="/profile"
+              className={`px-2 py-1.5 sm:px-2.5 rounded-lg text-xs font-medium transition-colors ${
+                pathname.startsWith('/profile')
+                  ? 'bg-zinc-800 text-zinc-100'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+              }`}
+            >
+              Profile
             </Link>
           </nav>
         </div>

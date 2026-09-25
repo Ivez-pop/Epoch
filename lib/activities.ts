@@ -13,10 +13,20 @@ export async function getActivities(): Promise<Activity[]> {
     return []
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return []
+  }
+
   const { data, error } = await supabase
     .from('activities')
     .select('*, subject:subjects(*)')
+    .eq('user_id', user.id)
     .order('started_at', { ascending: false })
+    .order('created_at', { ascending: false })
 
   if (error) {
     console.error('Error fetching activities:', error)
@@ -24,6 +34,65 @@ export async function getActivities(): Promise<Activity[]> {
   }
 
   return (data as Activity[]) || []
+}
+
+/**
+ * Server action to fetch a paginated list of recent activities for the logged-in user.
+ * Supports cursor (started_at timestamp) or page index pagination.
+ */
+export async function getRecentActivities(
+  limit: number = 20,
+  cursorOrPage?: string | number | null
+): Promise<{ activities: Activity[]; nextCursor: string | null; hasMore: boolean }> {
+  const supabase = await createClient()
+  if (!supabase) {
+    return { activities: [], nextCursor: null, hasMore: false }
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { activities: [], nextCursor: null, hasMore: false }
+  }
+
+  let query = supabase
+    .from('activities')
+    .select('*, subject:subjects(*)')
+    .eq('user_id', user.id)
+    .order('started_at', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (typeof cursorOrPage === 'string' && cursorOrPage.trim()) {
+    // Timestamp cursor pagination
+    query = query.lt('started_at', cursorOrPage.trim()).limit(limit + 1)
+  } else if (typeof cursorOrPage === 'number' && cursorOrPage > 0) {
+    // Numeric page offset pagination fallback
+    const from = cursorOrPage * limit
+    const to = from + limit
+    query = query.range(from, to)
+  } else {
+    // Initial page fetch
+    query = query.limit(limit + 1)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('Error fetching recent activities:', error)
+    return { activities: [], nextCursor: null, hasMore: false }
+  }
+
+  const items = (data as Activity[]) || []
+  const hasMore = items.length > limit
+  const activities = hasMore ? items.slice(0, limit) : items
+  const nextCursor =
+    hasMore && activities.length > 0
+      ? activities[activities.length - 1].started_at
+      : null
+
+  return { activities, nextCursor, hasMore }
 }
 
 /**
@@ -35,10 +104,19 @@ export async function getActivity(id: string): Promise<Activity | null> {
     return null
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return null
+  }
+
   const { data, error } = await supabase
     .from('activities')
     .select('*, subject:subjects(*)')
     .eq('id', id)
+    .eq('user_id', user.id)
     .maybeSingle()
 
   if (error || !data) {
@@ -99,6 +177,7 @@ export async function createActivity(
   revalidatePath('/')
   revalidatePath('/subjects')
   revalidatePath('/history')
+  revalidatePath('/profile')
   if (input.subject_id) {
     revalidatePath(`/subjects/${input.subject_id}`)
   }
@@ -123,6 +202,14 @@ export async function updateActivity(
     return { success: false, error: 'Supabase credentials are not configured.' }
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, error: 'Authentication required.' }
+  }
+
   if (!input.subject_id) {
     return { success: false, error: 'Subject is required.' }
   }
@@ -137,6 +224,7 @@ export async function updateActivity(
     .from('activities')
     .update(payload)
     .eq('id', id)
+    .eq('user_id', user.id)
     .select('*, subject:subjects(*)')
     .single()
 
@@ -149,6 +237,7 @@ export async function updateActivity(
   revalidatePath('/')
   revalidatePath('/subjects')
   revalidatePath('/history')
+  revalidatePath('/profile')
   if (input.subject_id) {
     revalidatePath(`/subjects/${input.subject_id}`)
   }
@@ -165,14 +254,23 @@ export async function deleteActivity(id: string): Promise<{ success: boolean; er
     return { success: false, error: 'Supabase credentials are not configured.' }
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, error: 'Authentication required.' }
+  }
+
   // Fetch activity to revalidate its subject page
   const { data: activity } = await supabase
     .from('activities')
     .select('subject_id')
     .eq('id', id)
+    .eq('user_id', user.id)
     .maybeSingle()
 
-  const { error } = await supabase.from('activities').delete().eq('id', id)
+  const { error } = await supabase.from('activities').delete().eq('id', id).eq('user_id', user.id)
 
   if (error) {
     console.error('Error deleting activity:', error)
@@ -182,6 +280,7 @@ export async function deleteActivity(id: string): Promise<{ success: boolean; er
   revalidatePath('/')
   revalidatePath('/subjects')
   revalidatePath('/history')
+  revalidatePath('/profile')
   if (activity?.subject_id) {
     revalidatePath(`/subjects/${activity.subject_id}`)
   }
