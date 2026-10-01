@@ -34,8 +34,10 @@ export async function middleware(request: NextRequest) {
   })
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  const user = session?.user || null
 
   const pathname = request.nextUrl.pathname
 
@@ -67,7 +69,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - manifest.json, sw.js, icons/
+     * - Static asset extensions (.png, .jpg, .svg, .woff2, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|icons/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|json)$).*)',
   ],
 }
