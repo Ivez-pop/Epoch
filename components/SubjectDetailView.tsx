@@ -64,12 +64,13 @@ export function SubjectDetailView({ initialSubject, initialActivities }: Subject
   const color = subject.color || '#f97316'
 
   return (
-    <div className="w-full max-w-xl mx-auto px-4 py-8">
+    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto">
       {/* Back button & Breadcrumb */}
       <div className="mb-6">
         <Link
           href="/subjects"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -86,11 +87,11 @@ export function SubjectDetailView({ initialSubject, initialActivities }: Subject
               className="w-4 h-4 rounded-full shrink-0 shadow-sm"
               style={{ backgroundColor: color }}
             />
-            <h1 className="text-3xl font-bold tracking-tight text-zinc-100">{subject.name}</h1>
+            <h1 className="text-3xl sm:text-[34px] font-semibold tracking-tight text-zinc-100">{subject.name}</h1>
           </div>
           <div className="text-right">
-            <span className="text-xs text-zinc-500 block">Total Time</span>
-            <span className="font-mono text-xl font-bold text-orange-400">
+            <span className="text-sm text-zinc-400 block mb-0.5">Total Time</span>
+            <span className="font-mono text-2xl sm:text-3xl font-bold text-orange-400">
               {formattedTotalTime}
             </span>
           </div>
@@ -104,11 +105,11 @@ export function SubjectDetailView({ initialSubject, initialActivities }: Subject
         </h2>
 
         {activities.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30">
-            <p className="text-sm text-zinc-400 mb-4">No activities logged under this subject yet.</p>
+          <div className="text-center py-16 px-4 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30">
+            <p className="text-base text-zinc-400 mb-6">No activities logged under this subject yet.</p>
             <Link
               href="/activity/new"
-              className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-500 transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-5 h-11 text-sm font-medium text-white hover:bg-orange-500 transition-colors"
             >
               Start Activity for {subject.name}
             </Link>
@@ -120,6 +121,7 @@ export function SubjectDetailView({ initialSubject, initialActivities }: Subject
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   )

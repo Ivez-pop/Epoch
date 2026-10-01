@@ -41,20 +41,20 @@ export default function LoginPage() {
             <span className="w-3 h-3 rounded-full bg-orange-500 animate-pulse" />
             <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Epoch</h1>
           </div>
-          <p className="text-xs text-zinc-400">Sign in to your personal activity tracker</p>
+          <p className="text-sm text-zinc-400">Sign in to your personal activity tracker</p>
         </div>
 
         {/* Card */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
           {error && (
-            <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-400">
+            <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/20 p-3.5 text-sm text-red-400">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-xs font-medium text-zinc-300 mb-1.5">
+              <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-1.5">
                 Email Address
               </label>
               <input
@@ -70,7 +70,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-xs font-medium text-zinc-300 mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-1.5">
                 Password
               </label>
               <input
@@ -93,7 +93,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-zinc-800 text-center text-xs text-zinc-400">
+          <div className="mt-6 pt-6 border-t border-zinc-800 text-center text-sm text-zinc-400">
             Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-orange-400 hover:text-orange-300 font-medium transition-colors">
               Create one &rarr;

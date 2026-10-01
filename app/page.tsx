@@ -1,5 +1,6 @@
 import { searchActivities } from '@/lib/activities'
 import { getSubjects } from '@/lib/subjects'
+import { getProfileStats } from '@/lib/profile'
 import { ActivityFeed } from '@/components/ActivityFeed'
 
 export const revalidate = 0
@@ -20,7 +21,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const from = params.from || ''
   const to = params.to || ''
 
-  const [searchRes, subjects] = await Promise.all([
+  const [searchRes, subjects, stats] = await Promise.all([
     searchActivities({
       query: q,
       subjectId,
@@ -29,6 +30,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       limit: 20,
     }),
     getSubjects(),
+    getProfileStats(),
   ])
 
   return (
@@ -39,6 +41,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         initialHasMore={searchRes.hasMore}
         initialTotalCount={searchRes.totalCount}
         subjects={subjects}
+        stats={stats}
         currentFilters={{ q, subject: subjectId, from, to }}
       />
     </div>

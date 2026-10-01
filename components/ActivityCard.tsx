@@ -17,33 +17,34 @@ export function ActivityCard({ activity }: ActivityCardProps) {
   return (
     <Link
       href={`/activity/${id}`}
-      className="group block relative rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-5 backdrop-blur-sm transition-all duration-200 hover:border-zinc-700/80 hover:bg-zinc-900/90"
+      className="group block relative rounded-2xl border border-zinc-800/70 bg-zinc-900/40 p-6 transition-all duration-200 hover:border-zinc-700/80 hover:bg-zinc-900/70 shadow-sm"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {title ? (
-            <h3 className="text-base font-semibold text-zinc-100 tracking-tight leading-snug group-hover:text-orange-400 transition-colors">
+            <h3 className="text-lg sm:text-[19px] font-semibold text-zinc-100 tracking-tight leading-snug group-hover:text-orange-400 transition-colors">
               {title}
             </h3>
           ) : (
-            <span className="text-sm font-medium text-zinc-400 italic group-hover:text-zinc-300 transition-colors">
+            <span className="text-base font-medium text-zinc-400 italic group-hover:text-zinc-300 transition-colors">
               Untitled Activity
             </span>
           )}
         </div>
-        <div className="shrink-0 flex items-center gap-2">
+
+        <div className="shrink-0 flex items-center gap-2.5">
           {subject ? (
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800/90 px-2.5 py-1 text-xs font-medium text-zinc-200 border border-zinc-700/60">
+            <div className="inline-flex items-center gap-2 text-sm text-zinc-300">
               <span
-                className="w-2 h-2 rounded-full shrink-0"
+                className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: subjectColor }}
               />
-              <span>{subject.name}</span>
-              <span className="text-zinc-500 font-mono">·</span>
+              <span className="font-medium">{subject.name}</span>
+              <span className="text-zinc-600">·</span>
               <span className="font-mono text-orange-400 font-semibold">{formattedDuration}</span>
-            </span>
+            </div>
           ) : (
-            <span className="inline-flex items-center rounded-md bg-orange-500/10 px-2.5 py-1 text-xs font-mono font-semibold text-orange-400 ring-1 ring-inset ring-orange-500/20">
+            <span className="font-mono text-sm font-semibold text-orange-400">
               {formattedDuration}
             </span>
           )}
@@ -51,14 +52,14 @@ export function ActivityCard({ activity }: ActivityCardProps) {
       </div>
 
       {description && (
-        <p className="mt-3 text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap line-clamp-3">
+        <p className="mt-3.5 text-[15px] text-zinc-300 leading-relaxed whitespace-pre-wrap line-clamp-3">
           {description}
         </p>
       )}
 
-      <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-xs text-zinc-500">
+      <div className="mt-5 pt-4 border-t border-zinc-800/50 flex items-center justify-between text-sm text-zinc-400">
         <span>{formattedDate}</span>
-        <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors flex items-center gap-1">
+        <span className="text-zinc-400 group-hover:text-zinc-200 transition-colors font-medium text-sm flex items-center gap-1">
           View details &rarr;
         </span>
       </div>
