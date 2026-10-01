@@ -41,7 +41,26 @@ export async function getActivityHistory(year: number): Promise<Record<string, D
   const supabase = await createClient()
   if (!supabase) return {}
 
-  // Fetch activities with a 1-day buffer on each side to account for timezone offsets
+  // Database-side aggregation via PostgreSQL RPC
+  const { data: rpcData, error: rpcError } = await supabase.rpc('get_daily_activity_summary', {
+    p_year: year,
+  })
+
+  if (!rpcError && rpcData) {
+    const historyMap: Record<string, DailyActivitySummary> = {}
+    for (const row of rpcData as any[]) {
+      const dateKey = row.date_key
+      if (!dateKey || !dateKey.startsWith(String(year))) continue
+      historyMap[dateKey] = {
+        date: dateKey,
+        total_duration_seconds: Number(row.total_duration_seconds || 0),
+        activity_count: Number(row.activity_count || 0),
+      }
+    }
+    return historyMap
+  }
+
+  // Fallback if RPC is not present
   const startBound = `${year - 1}-12-30T00:00:00.000Z`
   const endBound = `${year + 1}-01-02T23:59:59.999Z`
 

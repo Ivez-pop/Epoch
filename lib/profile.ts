@@ -146,10 +146,43 @@ export async function getProfileStats(preFetchedSubjects?: SubjectWithTime[]): P
   if (!supabase) return defaultStats
 
   const user = await getUser()
-
   if (!user) return defaultStats
 
-  // Reuse existing subject aggregation logic from lib/subjects.ts
+  // Try PostgreSQL RPC function first (Database-side aggregation)
+  const { data: rpcData, error: rpcError } = await supabase.rpc('get_user_profile_stats')
+
+  if (!rpcError && rpcData) {
+    const res = rpcData as any
+    const topSubjects = preFetchedSubjects
+      ? preFetchedSubjects.map((s) => ({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+          total_duration_seconds: s.total_duration_seconds,
+          activity_count: s.activity_count,
+        }))
+      : ((res.top_subjects || []) as any[]).map((s) => ({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+          total_duration_seconds: Number(s.total_duration_seconds || 0),
+          activity_count: Number(s.activity_count || 0),
+        }))
+
+    return {
+      total_duration_seconds: Number(res.total_duration_seconds || 0),
+      active_days: Number(res.active_days || 0),
+      activity_count: Number(res.activity_count || 0),
+      subject_count: Number(res.subject_count || 0),
+      top_subjects: topSubjects,
+      daily_average_30d_seconds: Number(res.daily_average_30d_seconds || 0),
+      consistency_rate_30d: Number(res.consistency_rate_30d || 0),
+      weekly_focus_seconds: Number(res.weekly_focus_seconds || 0),
+      current_streak_days: Number(res.current_streak_days || 0),
+    }
+  }
+
+  // Fallback if RPC is not present
   const subjects = preFetchedSubjects ?? (await getSubjects())
   const subjectCount = subjects.length
   const topSubjects = subjects.map((s) => ({
@@ -160,7 +193,6 @@ export async function getProfileStats(preFetchedSubjects?: SubjectWithTime[]): P
     activity_count: s.activity_count,
   }))
 
-  // Query user-owned activities for duration, count, active days, 30d, 7d, streak
   const { data: activitiesData } = await supabase
     .from('activities')
     .select('started_at, duration_seconds')
@@ -206,7 +238,6 @@ export async function getProfileStats(preFetchedSubjects?: SubjectWithTime[]): P
   const dailyAverage30d = Math.round(duration30Days / 30)
   const consistencyRate30d = Math.round((activeDays30Set.size / 30) * 100 * 10) / 10
 
-  // Calculate current streak
   let streak = 0
   const checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   let checkKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(
@@ -215,7 +246,6 @@ export async function getProfileStats(preFetchedSubjects?: SubjectWithTime[]): P
   )}-${String(checkDate.getDate()).padStart(2, '0')}`
 
   if (!activeDaysSet.has(checkKey)) {
-    // If no activity logged today yet, check from yesterday
     checkDate.setDate(checkDate.getDate() - 1)
     checkKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(
       2,

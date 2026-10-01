@@ -15,6 +15,21 @@ export async function getSubjects(): Promise<SubjectWithTime[]> {
     return []
   }
 
+  // Database-side aggregation via PostgreSQL RPC
+  const { data: rpcData, error: rpcError } = await supabase.rpc('get_user_subjects_with_stats')
+
+  if (!rpcError && rpcData) {
+    return (rpcData as any[]).map((sub) => ({
+      id: sub.id,
+      name: sub.name,
+      color: sub.color,
+      created_at: sub.created_at,
+      total_duration_seconds: Number(sub.total_duration_seconds || 0),
+      activity_count: Number(sub.activity_count || 0),
+    }))
+  }
+
+  // Fallback if RPC is not present
   const { data: subjectsData, error: subjectsError } = await supabase
     .from('subjects')
     .select('*')
@@ -32,7 +47,6 @@ export async function getSubjects(): Promise<SubjectWithTime[]> {
     console.error('Error fetching activity durations:', activitiesError)
   }
 
-  // Calculate sum of duration_seconds for each subject
   const timeMap: Record<string, { total: number; count: number }> = {}
   if (activitiesData) {
     for (const act of activitiesData) {
@@ -52,7 +66,6 @@ export async function getSubjects(): Promise<SubjectWithTime[]> {
     activity_count: timeMap[sub.id]?.count || 0,
   }))
 
-  // Order subjects by accumulated activity time descending
   subjectsWithTime.sort((a, b) => b.total_duration_seconds - a.total_duration_seconds)
 
   return subjectsWithTime
@@ -62,35 +75,8 @@ export async function getSubjects(): Promise<SubjectWithTime[]> {
  * Fetch a single subject by ID for the logged-in user with total accumulated time.
  */
 export async function getSubject(id: string): Promise<SubjectWithTime | null> {
-  const supabase = await createClient()
-  if (!supabase) return null
-
-  const [subRes, activitiesRes] = await Promise.all([
-    supabase.from('subjects').select('*').eq('id', id).maybeSingle(),
-    supabase.from('activities').select('duration_seconds').eq('subject_id', id),
-  ])
-
-  const sub = subRes.data
-  if (subRes.error || !sub) return null
-
-  const activitiesData = activitiesRes.data
-
-  let total = 0
-  let count = 0
-  if (activitiesData) {
-    for (const act of activitiesData) {
-      if (act.duration_seconds) {
-        total += act.duration_seconds
-        count += 1
-      }
-    }
-  }
-
-  return {
-    ...sub,
-    total_duration_seconds: total,
-    activity_count: count,
-  }
+  const subjects = await getSubjects()
+  return subjects.find((sub) => sub.id === id) || null
 }
 
 /**
