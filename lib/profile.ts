@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from './supabase/server'
+import { getUser } from './auth'
 import { getSubjects } from './subjects'
+import { SubjectWithTime } from './supabase'
 
 export interface Profile {
   id: string
@@ -47,9 +49,7 @@ export async function getProfile(): Promise<{
     }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return {
@@ -99,9 +99,7 @@ export async function updateProfile(
     return { success: false, error: 'Supabase credentials are not configured.' }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return { success: false, error: 'Authentication required.' }
@@ -131,7 +129,7 @@ export async function updateProfile(
 /**
  * Calculate personal profile statistics for the logged-in user derived from database activities and subjects.
  */
-export async function getProfileStats(): Promise<ProfileStats> {
+export async function getProfileStats(preFetchedSubjects?: SubjectWithTime[]): Promise<ProfileStats> {
   const supabase = await createClient()
   const defaultStats: ProfileStats = {
     total_duration_seconds: 0,
@@ -147,14 +145,12 @@ export async function getProfileStats(): Promise<ProfileStats> {
 
   if (!supabase) return defaultStats
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) return defaultStats
 
   // Reuse existing subject aggregation logic from lib/subjects.ts
-  const subjects = await getSubjects()
+  const subjects = preFetchedSubjects ?? (await getSubjects())
   const subjectCount = subjects.length
   const topSubjects = subjects.map((s) => ({
     id: s.id,

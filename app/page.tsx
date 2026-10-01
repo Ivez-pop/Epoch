@@ -23,7 +23,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const to = params.to || ''
   const currentYear = new Date().getFullYear()
 
-  const [searchRes, subjects, stats, historyMap] = await Promise.all([
+  const [searchRes, subjects, historyMap] = await Promise.all([
     searchActivities({
       query: q,
       subjectId,
@@ -32,9 +32,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       limit: 20,
     }),
     getSubjects(),
-    getProfileStats(),
     getActivityHistory(currentYear),
   ])
+
+  const stats = await getProfileStats(subjects)
 
   return (
     <div className="flex-1 flex flex-col justify-start">

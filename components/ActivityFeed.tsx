@@ -337,7 +337,7 @@ export function ActivityFeed({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-github-border/60 gap-2 mb-4">
               <div>
                 <h2 className="text-base font-bold text-github-bright flex items-center gap-2">
-                  <span>Github Contribution Matrix</span>
+                  <span>Contribution Matrix</span>
                   <span className="text-xs font-mono bg-strava-light text-strava px-2 py-0.5 rounded font-semibold border border-strava/20">
                     Year {currentYear}
                   </span>

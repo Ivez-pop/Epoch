@@ -4,8 +4,10 @@ import { ProfileView } from '@/components/ProfileView'
 export const revalidate = 0
 
 export default async function ProfilePage() {
-  const { profile, userEmail, createdAt, displayName } = await getProfile()
-  const stats = await getProfileStats()
+  const [{ profile, userEmail, createdAt, displayName }, stats] = await Promise.all([
+    getProfile(),
+    getProfileStats(),
+  ])
 
   return (
     <div className="flex-1 flex flex-col justify-start">

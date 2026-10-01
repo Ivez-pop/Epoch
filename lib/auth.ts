@@ -1,10 +1,11 @@
 'use server'
 
+import { cache } from 'react'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from './supabase/server'
 
-export async function getUser() {
+export const getUser = cache(async () => {
   const supabase = await createClient()
   if (!supabase) return null
 
@@ -13,7 +14,7 @@ export async function getUser() {
   } = await supabase.auth.getUser()
 
   return user
-}
+})
 
 export async function signIn(formData: { email: string; password: string }) {
   const email = formData.email?.trim()

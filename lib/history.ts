@@ -81,8 +81,11 @@ export async function getActivityHistory(year: number): Promise<Record<string, D
 /**
  * Compute summary statistics for the logged-in user for a given calendar year.
  */
-export async function getYearActivitySummary(year: number): Promise<YearActivitySummary> {
-  const historyMap = await getActivityHistory(year)
+export async function getYearActivitySummary(
+  year: number,
+  preFetchedHistoryMap?: Record<string, DailyActivitySummary>
+): Promise<YearActivitySummary> {
+  const historyMap = preFetchedHistoryMap ?? (await getActivityHistory(year))
 
   let totalDuration = 0
   let totalActivities = 0

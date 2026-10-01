@@ -10,7 +10,10 @@ interface PageProps {
 
 export default async function SubjectDetailPage({ params }: PageProps) {
   const { id } = await params
-  const subject = await getSubject(id)
+  const [subject, activities] = await Promise.all([
+    getSubject(id),
+    getSubjectActivities(id),
+  ])
 
   if (!subject) {
     // If not found in DB, construct fallback empty subject container for client-side localStorage sync if offline
@@ -24,8 +27,6 @@ export default async function SubjectDetailPage({ params }: PageProps) {
     }
     return <SubjectDetailView initialSubject={fallbackSubject} initialActivities={[]} />
   }
-
-  const activities = await getSubjectActivities(id)
 
   return (
     <div className="flex-1 flex flex-col justify-start">

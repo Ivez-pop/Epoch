@@ -7,7 +7,7 @@ export default async function HistoryPage() {
   const currentYear = new Date().getFullYear()
 
   const historyMap = await getActivityHistory(currentYear)
-  const summary = await getYearActivitySummary(currentYear)
+  const summary = await getYearActivitySummary(currentYear, historyMap)
 
   // Find latest active date in current year
   const activeDates = Object.keys(historyMap).filter(

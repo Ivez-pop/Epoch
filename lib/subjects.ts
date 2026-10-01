@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from './supabase/server'
+import { getUser } from './auth'
 import { Subject, SubjectWithTime, Activity } from './supabase'
 
 /**
@@ -64,18 +65,15 @@ export async function getSubject(id: string): Promise<SubjectWithTime | null> {
   const supabase = await createClient()
   if (!supabase) return null
 
-  const { data: sub, error } = await supabase
-    .from('subjects')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle()
+  const [subRes, activitiesRes] = await Promise.all([
+    supabase.from('subjects').select('*').eq('id', id).maybeSingle(),
+    supabase.from('activities').select('duration_seconds').eq('subject_id', id),
+  ])
 
-  if (error || !sub) return null
+  const sub = subRes.data
+  if (subRes.error || !sub) return null
 
-  const { data: activitiesData } = await supabase
-    .from('activities')
-    .select('duration_seconds')
-    .eq('subject_id', id)
+  const activitiesData = activitiesRes.data
 
   let total = 0
   let count = 0
@@ -115,9 +113,7 @@ export async function createSubject(
     }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return { success: false, error: 'Authentication required to create subject.' }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from './supabase/server'
+import { getUser } from './auth'
 import { Activity, CreateActivityInput } from './supabase'
 
 export interface ActivityCursor {
@@ -68,9 +69,7 @@ export async function searchActivities(
     return { activities: [], nextCursor: null, hasMore: false, totalCount: 0 }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return { activities: [], nextCursor: null, hasMore: false, totalCount: 0 }
@@ -208,9 +207,7 @@ export async function getActivity(id: string): Promise<Activity | null> {
     return null
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return null
@@ -245,9 +242,7 @@ export async function createActivity(
     }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return { success: false, error: 'Authentication required to create activity.' }
@@ -306,9 +301,7 @@ export async function updateActivity(
     return { success: false, error: 'Supabase credentials are not configured.' }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return { success: false, error: 'Authentication required.' }
@@ -358,9 +351,7 @@ export async function deleteActivity(id: string): Promise<{ success: boolean; er
     return { success: false, error: 'Supabase credentials are not configured.' }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     return { success: false, error: 'Authentication required.' }
