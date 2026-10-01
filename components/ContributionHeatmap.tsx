@@ -12,7 +12,6 @@ interface ContributionHeatmapProps {
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
 
 /**
  * Determine heatmap cell intensity level based on daily duration in seconds.
@@ -31,22 +30,77 @@ function getIntensityLevel(seconds: number): number {
   return 4
 }
 
-function getLevelClasses(level: number, isSelected: boolean): string {
-  const base = 'w-3 h-3 rounded-[3px] transition-all cursor-pointer touch-manipulation'
-  const ring = isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-950 scale-110 z-10' : 'hover:scale-110'
+/**
+ * Static mapping of cell backgrounds and borders for strong visual progression.
+ * Level 0: Empty (#20262e / #303740)
+ * Level 1: Low (#164e32 / #216b43)
+ * Level 2: Medium (#167347 / #238b56)
+ * Level 3: High (#20a65a / #32bd6b)
+ * Level 4: Very High (#39d56f / #55e889)
+ */
+const LEVEL_STYLES: Record<number, { bg: string; border: string }> = {
+  0: { bg: 'bg-[#20262e]', border: 'border-[#303740]' },
+  1: { bg: 'bg-[#164e32]', border: 'border-[#216b43]' },
+  2: { bg: 'bg-[#167347]', border: 'border-[#238b56]' },
+  3: { bg: 'bg-[#20a65a]', border: 'border-[#32bd6b]' },
+  4: { bg: 'bg-[#39d56f]', border: 'border-[#55e889]' },
+}
 
-  switch (level) {
-    case 1:
-      return `${base} ${ring} bg-orange-950/80 border border-orange-800/60`
-    case 2:
-      return `${base} ${ring} bg-orange-800/80 border border-orange-700/80`
-    case 3:
-      return `${base} ${ring} bg-orange-600 border border-orange-500`
-    case 4:
-      return `${base} ${ring} bg-orange-500 border border-orange-400 shadow-sm shadow-orange-500/40`
-    default:
-      return `${base} ${ring} bg-zinc-900/80 border border-zinc-800/60 hover:border-zinc-700`
+function getCellClasses(
+  level: number,
+  isToday: boolean,
+  isSelected: boolean
+): string {
+  const base =
+    'w-[16px] h-[16px] sm:w-[17px] sm:h-[17px] lg:w-[18px] lg:h-[18px] rounded-[3px] cursor-pointer transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-strava relative shrink-0 block border'
+  const style = LEVEL_STYLES[level] || LEVEL_STYLES[0]
+
+  // State hierarchy:
+  // TODAY + SELECTED: Orange outer border + white ring + subtle glow
+  if (isToday && isSelected) {
+    return `${base} ${style.bg} ${style.border} ring-2 ring-strava ring-offset-2 ring-offset-white shadow-[0_0_12px_rgba(252,82,0,0.6)] scale-110 z-30`
   }
+
+  // SELECTED: White border emphasis + scale
+  if (isSelected) {
+    return `${base} ${style.bg} border-white ring-2 ring-white scale-110 z-20 shadow-md`
+  }
+
+  // TODAY: Orange 2px ring + subtle orange glow
+  if (isToday) {
+    return `${base} ${style.bg} ${style.border} ring-2 ring-strava shadow-[0_0_10px_rgba(252,82,0,0.5)] scale-105 z-20`
+  }
+
+  // NORMAL CELL
+  return `${base} ${style.bg} ${style.border} hover:ring-1.5 hover:ring-strava hover:scale-110 hover:z-20`
+}
+
+function getTodayLocalDateString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getAriaLabel(
+  dateStr: string,
+  durationSeconds: number,
+  activityCount: number,
+  isToday: boolean,
+  isSelected: boolean
+): string {
+  const fullDate = formatFullDate(dateStr)
+  const durationText = durationSeconds > 0 ? formatDuration(durationSeconds) : 'no activity'
+  const countText =
+    activityCount > 0 ? `${activityCount} ${activityCount === 1 ? 'activity' : 'activities'}` : ''
+  const todayText = isToday ? ' — Today' : ''
+  const selectedText = isSelected ? ' — Selected' : ''
+
+  if (durationSeconds > 0) {
+    return `${fullDate}${todayText}${selectedText} — ${durationText}${countText ? `, ${countText}` : ''}`
+  }
+  return `${fullDate}${todayText}${selectedText} — No activity`
 }
 
 export function ContributionHeatmap({
@@ -61,19 +115,22 @@ export function ContributionHeatmap({
     count: number
   } | null>(null)
 
+  const todayStr = getTodayLocalDateString()
+
   // Generate matrix of dates for the 52/53 weeks of the specified year
   const jan1 = new Date(year, 0, 1)
   const dec31 = new Date(year, 11, 31)
 
-  // Align start to the preceding Sunday
+  // Align start to preceding Monday (0 = Monday)
   const startDate = new Date(jan1)
-  startDate.setDate(jan1.getDate() - jan1.getDay())
+  const dayOffset = (jan1.getDay() + 6) % 7
+  startDate.setDate(jan1.getDate() - dayOffset)
 
   // Generate weeks
   const weeks: { date: Date; dateStr: string; inYear: boolean }[][] = []
   let curr = new Date(startDate)
 
-  while (curr <= dec31 || curr.getDay() !== 0) {
+  while (curr <= dec31 || (curr.getDay() + 6) % 7 !== 0) {
     const week: { date: Date; dateStr: string; inYear: boolean }[] = []
     for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
       const yearNum = curr.getFullYear()
@@ -86,7 +143,7 @@ export function ContributionHeatmap({
       curr.setDate(curr.getDate() + 1)
     }
     weeks.push(week)
-    if (curr > dec31 && curr.getDay() === 0) break
+    if (curr > dec31 && (curr.getDay() + 6) % 7 === 0) break
   }
 
   // Calculate month label positions
@@ -105,69 +162,96 @@ export function ContributionHeatmap({
   })
 
   return (
-    <div className="w-full bg-zinc-900/60 rounded-2xl border border-zinc-800/80 p-4 sm:p-6 backdrop-blur-xl">
-      {/* Tooltip / Hover Bar */}
-      <div className="h-7 mb-3 flex items-center justify-between text-xs text-zinc-400 px-1">
+    <div className="w-full space-y-3">
+      {/* Tooltip / Hover Information Header */}
+      <div className="min-h-[28px] flex items-center justify-between text-xs font-mono text-github-muted bg-[#161b22] px-3 py-1.5 rounded-lg border border-github-border/60">
         {hoveredData ? (
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-zinc-200">{formatFullDate(hoveredData.date)}</span>
-            <span className="text-zinc-600">·</span>
-            <span className="font-mono font-bold text-orange-400">
-              {formatDuration(hoveredData.duration)}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-github-bright">{formatFullDate(hoveredData.date)}</span>
+            <span>•</span>
+            <span className="font-bold text-strava">
+              {hoveredData.duration > 0 ? `${formatDuration(hoveredData.duration)} logged` : 'No activity'}
             </span>
-            <span className="text-zinc-600">·</span>
-            <span>
-              {hoveredData.count} {hoveredData.count === 1 ? 'activity' : 'activities'}
-            </span>
+            {hoveredData.count > 0 && (
+              <>
+                <span>•</span>
+                <span>
+                  {hoveredData.count} {hoveredData.count === 1 ? 'activity' : 'activities'}
+                </span>
+              </>
+            )}
+            {hoveredData.date === todayStr && (
+              <span className="bg-strava/20 text-strava px-1.5 py-0.5 rounded text-[10px] font-bold border border-strava/40">
+                TODAY
+              </span>
+            )}
           </div>
         ) : selectedDate ? (
-          <div className="flex items-center gap-2">
-            <span className="text-zinc-400">Selected:</span>
-            <span className="font-semibold text-zinc-200">{formatFullDate(selectedDate)}</span>
-            <span className="text-zinc-600">·</span>
-            <span className="font-mono font-bold text-orange-400">
-              {formatDuration(historyMap[selectedDate]?.total_duration_seconds || 0)}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-github-muted">Selected:</span>
+            <span className="font-semibold text-github-bright">{formatFullDate(selectedDate)}</span>
+            <span>•</span>
+            <span className="font-bold text-strava">
+              {historyMap[selectedDate]?.total_duration_seconds
+                ? `${formatDuration(historyMap[selectedDate].total_duration_seconds)} logged`
+                : 'No activity'}
             </span>
+            {selectedDate === todayStr && (
+              <span className="bg-strava/20 text-strava px-1.5 py-0.5 rounded text-[10px] font-bold border border-strava/40">
+                TODAY
+              </span>
+            )}
           </div>
         ) : (
-          <div className="text-zinc-500 italic">Select or hover over a day to view activity</div>
+          <div className="text-github-muted italic text-[11px]">
+            Click or hover over any day cell to inspect focus telemetry
+          </div>
         )}
       </div>
 
-      {/* Heatmap Grid Container with Horizontal Scroll for Mobile */}
-      <div className="overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-800">
-        <div className="min-w-[700px] inline-block">
-          {/* Month Headers */}
-          <div className="flex text-[10px] text-zinc-500 font-medium mb-1.5 pl-7">
-            {monthHeaders.map((m, i) => {
-              const nextCol = monthHeaders[i + 1]?.weekIndex || weeks.length
-              const colSpan = nextCol - m.weekIndex
-              return (
-                <div key={i} style={{ width: `${colSpan * 15}px` }} className="shrink-0 truncate">
-                  {m.label}
-                </div>
-              )
-            })}
+      {/* Heatmap Matrix Viewport */}
+      <div className="overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-github-border">
+        <div className="inline-block min-w-full">
+          {/* Months Header with Precise Left Offsets */}
+          <div className="relative h-5 text-[11px] sm:text-xs font-mono font-medium text-github-muted mb-2 select-none">
+            {monthHeaders.map((m, i) => (
+              <span
+                key={i}
+                className="absolute"
+                style={{
+                  left: `calc(${m.weekIndex} * (16px + 4px) + 32px)`,
+                }}
+              >
+                {m.label}
+              </span>
+            ))}
           </div>
 
-          {/* Grid Rows (Days of Week) */}
-          <div className="flex">
-            {/* Day Labels (Left Column) */}
-            <div className="flex flex-col justify-between text-[10px] text-zinc-500 font-medium pr-2 shrink-0 py-0.5 select-none w-7">
-              {DAY_LABELS.map((lbl, idx) => (
-                <span key={idx} className="h-3 leading-3">
-                  {lbl}
-                </span>
-              ))}
+          {/* Heatmap Grid with Days of Week */}
+          <div className="flex items-start gap-2">
+            {/* Day indicator labels */}
+            <div className="grid grid-rows-7 gap-1 text-[11px] font-mono text-github-muted pr-1 pt-0.5 select-none w-[26px] shrink-0">
+              <span className="h-[16px] sm:h-[17px] lg:h-[18px] leading-[16px] sm:leading-[17px] lg:leading-[18px]">Mon</span>
+              <span className="h-[16px] sm:h-[17px] lg:h-[18px] leading-[16px] sm:leading-[17px] lg:leading-[18px] opacity-0">Tue</span>
+              <span className="h-[16px] sm:h-[17px] lg:h-[18px] leading-[16px] sm:leading-[17px] lg:leading-[18px]">Wed</span>
+              <span className="h-[16px] sm:h-[17px] lg:h-[18px] leading-[16px] sm:leading-[17px] lg:leading-[18px] opacity-0">Thu</span>
+              <span className="h-[16px] sm:h-[17px] lg:h-[18px] leading-[16px] sm:leading-[17px] lg:leading-[18px]">Fri</span>
+              <span className="h-[16px] sm:h-[17px] lg:h-[18px] leading-[16px] sm:leading-[17px] lg:leading-[18px] opacity-0">Sat</span>
+              <span className="h-[16px] sm:h-[17px] lg:h-[18px] leading-[16px] sm:leading-[17px] lg:leading-[18px]">Sun</span>
             </div>
 
-            {/* Heatmap Columns (Weeks) */}
-            <div className="flex gap-[3px]">
+            {/* Matrix Columns Container */}
+            <div className="flex items-center gap-1 shrink-0">
               {weeks.map((week, wIdx) => (
-                <div key={wIdx} className="flex flex-col gap-[3px]">
+                <div key={wIdx} className="grid grid-rows-7 gap-1 w-[16px] sm:w-[17px] lg:w-[18px] shrink-0">
                   {week.map((day, dIdx) => {
                     if (!day.inYear) {
-                      return <div key={dIdx} className="w-3 h-3 rounded-[3px] opacity-0" />
+                      return (
+                        <div
+                          key={dIdx}
+                          className="w-[16px] h-[16px] sm:w-[17px] sm:h-[17px] lg:w-[18px] lg:h-[18px] rounded-[3px] bg-[#20262e]/30 border border-[#303740]/20 opacity-20 shrink-0"
+                        />
+                      )
                     }
 
                     const data = historyMap[day.dateStr] || {
@@ -178,10 +262,20 @@ export function ContributionHeatmap({
 
                     const level = getIntensityLevel(data.total_duration_seconds)
                     const isSelected = selectedDate === day.dateStr
+                    const isToday = day.dateStr === todayStr
+                    const ariaLabel = getAriaLabel(
+                      day.dateStr,
+                      data.total_duration_seconds,
+                      data.activity_count,
+                      isToday,
+                      isSelected
+                    )
 
                     return (
-                      <div
+                      <button
                         key={dIdx}
+                        type="button"
+                        aria-label={ariaLabel}
                         onClick={() => onSelectDate(day.dateStr)}
                         onMouseEnter={() =>
                           setHoveredData({
@@ -191,7 +285,7 @@ export function ContributionHeatmap({
                           })
                         }
                         onMouseLeave={() => setHoveredData(null)}
-                        className={getLevelClasses(level, isSelected)}
+                        className={getCellClasses(level, isToday, isSelected)}
                       />
                     )
                   })}
@@ -202,21 +296,42 @@ export function ContributionHeatmap({
         </div>
       </div>
 
-      {/* Legend Footer */}
-      <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-500">
-        <span>Daily time spent</span>
-        <div className="flex items-center gap-1.5">
-          <span>Less</span>
-          <div className="flex items-center gap-[3px]">
-            <div className="w-3 h-3 rounded-[3px] bg-zinc-900/80 border border-zinc-800/60" title="0 min" />
-            <div className="w-3 h-3 rounded-[3px] bg-orange-950/80 border border-orange-800/60" title="1–29 min" />
-            <div className="w-3 h-3 rounded-[3px] bg-orange-800/80 border border-orange-700/80" title="30–59 min" />
-            <div className="w-3 h-3 rounded-[3px] bg-orange-600 border border-orange-500" title="60–119 min" />
-            <div className="w-3 h-3 rounded-[3px] bg-orange-500 border border-orange-400" title="120+ min" />
+      {/* Heatmap Footer Legend */}
+      <div className="mt-4 pt-3 border-t border-github-border/60 flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-github-muted">
+        <span className="hover:text-github-bright transition cursor-pointer">
+          Telemetry aggregated by day
+        </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span>Less</span>
+            <div className="flex items-center gap-1">
+              <div className="w-3.5 h-3.5 rounded-[3px] bg-[#20262e] border border-[#303740]" title="0 min" />
+              <div className="w-3.5 h-3.5 rounded-[3px] bg-[#164e32] border border-[#216b43]" title="1–29 min" />
+              <div className="w-3.5 h-3.5 rounded-[3px] bg-[#167347] border border-[#238b56]" title="30–59 min" />
+              <div className="w-3.5 h-3.5 rounded-[3px] bg-[#20a65a] border border-[#32bd6b]" title="60–119 min" />
+              <div className="w-3.5 h-3.5 rounded-[3px] bg-[#39d56f] border border-[#55e889]" title="120+ min" />
+            </div>
+            <span>More</span>
           </div>
-          <span>More</span>
+
+          <span className="text-github-border">|</span>
+
+          <div className="flex items-center gap-1.5">
+            <div className="w-3.5 h-3.5 rounded-[3px] bg-[#20262e] border border-[#303740] ring-2 ring-strava shadow-[0_0_6px_rgba(252,82,0,0.5)]" title="Today Marker" />
+            <span className="text-github-bright font-semibold">Today</span>
+          </div>
+
+          <span className="text-github-border">|</span>
+
+          <div className="flex items-center gap-1.5">
+            <div className="w-3.5 h-3.5 rounded-[3px] bg-[#20262e] border-white ring-2 ring-white" title="Selected Marker" />
+            <span className="text-github-bright font-semibold">Selected</span>
+          </div>
         </div>
       </div>
     </div>
   )
 }
+
+
+

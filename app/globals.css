@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
+@theme {
+  --color-strava: #FC5200;
+  --color-strava-hover: #E04700;
+  --color-strava-light: rgba(252, 82, 0, 0.12);
+  --color-strava-subtle: #FF6B26;
+
+  --color-github-canvas: #0d1117;
+  --color-github-subtle: #161b22;
+  --color-github-card: #0d1117;
+  --color-github-border: #30363d;
+  --color-github-muted: #8b949e;
+  --color-github-text: #c9d1d9;
+  --color-github-bright: #f0f6fc;
+
+  --color-github-green-empty: #161b22;
+  --color-github-green-lvl1: #0e4429;
+  --color-github-green-lvl2: #006d32;
+  --color-github-green-lvl3: #26a641;
+  --color-github-green-lvl4: #39d353;
+
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #0d1117;
+  --foreground: #c9d1d9;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #0d1117;
+  color: #c9d1d9;
+  font-family: var(--font-sans);
 }
+
+/* Custom scrollbar for data dense tables & lists */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Precision contribution matrix squares */
+.grid-commit-col {
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  gap: 3px;
+}
+.commit-box {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  transition: transform 0.1s ease, outline 0.1s ease;
+}
+.commit-box:hover {
+  outline: 1.5px solid #FC5200;
+  transform: scale(1.25);
+  z-index: 10;
+  position: relative;
+}
+

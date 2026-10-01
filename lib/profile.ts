@@ -20,7 +20,12 @@ export interface ProfileStats {
     name: string
     color: string | null
     total_duration_seconds: number
+    activity_count?: number
   }[]
+  daily_average_30d_seconds: number
+  consistency_rate_30d: number
+  weekly_focus_seconds: number
+  current_streak_days: number
 }
 
 /**
@@ -134,6 +139,10 @@ export async function getProfileStats(): Promise<ProfileStats> {
     activity_count: 0,
     subject_count: 0,
     top_subjects: [],
+    daily_average_30d_seconds: 0,
+    consistency_rate_30d: 0,
+    weekly_focus_seconds: 0,
+    current_streak_days: 0,
   }
 
   if (!supabase) return defaultStats
@@ -147,14 +156,15 @@ export async function getProfileStats(): Promise<ProfileStats> {
   // Reuse existing subject aggregation logic from lib/subjects.ts
   const subjects = await getSubjects()
   const subjectCount = subjects.length
-  const topSubjects = subjects.slice(0, 5).map((s) => ({
+  const topSubjects = subjects.map((s) => ({
     id: s.id,
     name: s.name,
     color: s.color,
     total_duration_seconds: s.total_duration_seconds,
+    activity_count: s.activity_count,
   }))
 
-  // Query user-owned activities for duration, count, and active days
+  // Query user-owned activities for duration, count, active days, 30d, 7d, streak
   const { data: activitiesData } = await supabase
     .from('activities')
     .select('started_at, duration_seconds')
@@ -164,12 +174,19 @@ export async function getProfileStats(): Promise<ProfileStats> {
   let activityCount = 0
   const activeDaysSet = new Set<string>()
 
+  const now = new Date()
+  const date30DaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0)
+  const date7DaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0)
+
+  let duration30Days = 0
+  const activeDays30Set = new Set<string>()
+  let duration7Days = 0
+
   if (activitiesData) {
     for (const act of activitiesData) {
-      if (act.duration_seconds) {
-        totalDuration += act.duration_seconds
-        activityCount += 1
-      }
+      const dur = act.duration_seconds || 0
+      totalDuration += dur
+      activityCount += 1
 
       if (act.started_at) {
         const d = new Date(act.started_at)
@@ -177,8 +194,46 @@ export async function getProfileStats(): Promise<ProfileStats> {
           d.getDate()
         ).padStart(2, '0')}`
         activeDaysSet.add(dateKey)
+
+        if (d >= date30DaysAgo) {
+          duration30Days += dur
+          activeDays30Set.add(dateKey)
+        }
+
+        if (d >= date7DaysAgo) {
+          duration7Days += dur
+        }
       }
     }
+  }
+
+  const dailyAverage30d = Math.round(duration30Days / 30)
+  const consistencyRate30d = Math.round((activeDays30Set.size / 30) * 100 * 10) / 10
+
+  // Calculate current streak
+  let streak = 0
+  const checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let checkKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(
+    2,
+    '0'
+  )}-${String(checkDate.getDate()).padStart(2, '0')}`
+
+  if (!activeDaysSet.has(checkKey)) {
+    // If no activity logged today yet, check from yesterday
+    checkDate.setDate(checkDate.getDate() - 1)
+    checkKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(
+      2,
+      '0'
+    )}-${String(checkDate.getDate()).padStart(2, '0')}`
+  }
+
+  while (activeDaysSet.has(checkKey)) {
+    streak += 1
+    checkDate.setDate(checkDate.getDate() - 1)
+    checkKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(
+      2,
+      '0'
+    )}-${String(checkDate.getDate()).padStart(2, '0')}`
   }
 
   return {
@@ -187,5 +242,9 @@ export async function getProfileStats(): Promise<ProfileStats> {
     activity_count: activityCount,
     subject_count: subjectCount,
     top_subjects: topSubjects,
+    daily_average_30d_seconds: dailyAverage30d,
+    consistency_rate_30d: consistencyRate30d,
+    weekly_focus_seconds: duration7Days,
+    current_streak_days: streak,
   }
 }

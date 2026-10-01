@@ -44,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100 font-sans selection:bg-orange-500/30 selection:text-orange-200">
+      <body className="min-h-full flex flex-col bg-[#0d1117] text-github-text antialiased selection:bg-strava selection:text-white">
         <PwaRegister />
         <Header />
         <main className="flex-1 flex flex-col">{children}</main>

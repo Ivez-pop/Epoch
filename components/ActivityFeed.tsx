@@ -2,10 +2,13 @@
 
 import React, { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Activity, Subject } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { Activity, SubjectWithTime, Subject } from '@/lib/supabase'
 import { ProfileStats } from '@/lib/profile'
+import { DailyActivitySummary } from '@/lib/history'
 import { ActivityCard } from './ActivityCard'
+import { ContributionHeatmap } from './ContributionHeatmap'
+import { CreateSubjectModal } from './CreateSubjectModal'
 import { searchActivities } from '@/lib/activities'
 import { formatDuration } from '@/lib/utils'
 
@@ -21,8 +24,10 @@ interface ActivityFeedProps {
   initialNextCursor: string | null
   initialHasMore: boolean
   initialTotalCount?: number
-  subjects: Subject[]
+  subjects: SubjectWithTime[]
   stats?: ProfileStats
+  historyMap?: Record<string, DailyActivitySummary>
+  currentYear?: number
   currentFilters: CurrentFilters
 }
 
@@ -31,12 +36,13 @@ export function ActivityFeed({
   initialNextCursor,
   initialHasMore,
   initialTotalCount = 0,
-  subjects,
+  subjects: initialSubjects,
   stats,
+  historyMap = {},
+  currentYear = new Date().getFullYear(),
   currentFilters,
 }: ActivityFeedProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
 
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
@@ -44,18 +50,21 @@ export function ActivityFeed({
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore)
   const [totalCount, setTotalCount] = useState<number>(initialTotalCount)
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
+  const [subjects, setSubjects] = useState<SubjectWithTime[]>(initialSubjects)
+  const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false)
 
-  // Local state for search text input so user can type smoothly before committing
+  // Local state for search text input
   const [searchInput, setSearchInput] = useState<string>(currentFilters.q)
 
-  // Sync props to state when server revalidates or searchParams change
+  // Sync props to state when server revalidates or filters change
   useEffect(() => {
     setActivities(initialActivities)
     setNextCursor(initialNextCursor)
     setHasMore(initialHasMore)
     setTotalCount(initialTotalCount)
     setSearchInput(currentFilters.q)
-  }, [initialActivities, initialNextCursor, initialHasMore, initialTotalCount, currentFilters.q])
+    setSubjects(initialSubjects)
+  }, [initialActivities, initialNextCursor, initialHasMore, initialTotalCount, initialSubjects, currentFilters.q])
 
   const hasActiveFilters = Boolean(
     currentFilters.q.trim() || currentFilters.subject || currentFilters.from || currentFilters.to
@@ -87,6 +96,21 @@ export function ActivityFeed({
     }, 350)
     return () => clearTimeout(timer)
   }, [searchInput])
+
+  // Keyboard shortcut listener ('N' for add subject)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+      if (e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        setIsAddSubjectOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const handleClearFilters = () => {
     setSearchInput('')
@@ -131,68 +155,94 @@ export function ActivityFeed({
     }
   }
 
-  // Selected subject object
-  const activeSubject = subjects.find((s) => s.id === currentFilters.subject)
+  // Quick Granularity Filter Preset handler
+  const setGranularityPreset = (preset: 'all' | '365d' | '90d' | 'month') => {
+    const now = new Date()
+    const formatDate = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-  // Format date range text for pill
-  const formatDateRangePill = () => {
-    const { from, to } = currentFilters
-    if (from && to) {
-      return `${from} → ${to}`
-    } else if (from) {
-      return `From ${from}`
-    } else if (to) {
-      return `Until ${to}`
+    if (preset === 'all') {
+      updateUrlFilters({ from: '', to: '' })
+    } else if (preset === '365d') {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 365)
+      updateUrlFilters({ from: formatDate(d), to: '' })
+    } else if (preset === '90d') {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 90)
+      updateUrlFilters({ from: formatDate(d), to: '' })
+    } else if (preset === 'month') {
+      const d = new Date(now.getFullYear(), now.getMonth(), 1)
+      updateUrlFilters({ from: formatDate(d), to: '' })
     }
-    return ''
   }
 
-  // Top subjects for sidebar (limit top 5)
-  const topSubjects = stats?.top_subjects || []
+  const activeSubject = subjects.find((s) => s.id === currentFilters.subject)
+  const totalLoggedSeconds = stats?.total_duration_seconds || 0
+
+  // Calculate subject rankings with percentage of total duration
+  const rankedSubjects = subjects
+    .filter((s) => s.total_duration_seconds > 0)
+    .sort((a, b) => b.total_duration_seconds - a.total_duration_seconds)
+    .slice(0, 5)
+
+  const handleSubjectCreated = (newSubject: Subject) => {
+    const newSubWithTime: SubjectWithTime = {
+      ...newSubject,
+      total_duration_seconds: 0,
+      activity_count: 0,
+    }
+    setSubjects((prev) => [...prev, newSubWithTime])
+  }
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-6 sm:px-8 py-8 sm:py-10 flex-1 flex flex-col">
-      <div className="lg:grid lg:grid-cols-12 lg:gap-10 items-start flex-1 flex flex-col lg:flex-row">
-        {/* Main Activity Feed Column */}
-        <main className="lg:col-span-8 w-full flex-1 flex flex-col min-h-0">
-          {/* Feed Header */}
-          <header className="flex items-center justify-between pb-6 mb-8 border-b border-zinc-800/80 shrink-0">
-            <div>
-              <h1 className="text-3xl sm:text-[34px] font-semibold tracking-tight text-zinc-100 flex items-center gap-3">
-                <span className="w-3.5 h-3.5 rounded-full bg-orange-500 inline-block animate-pulse" />
-                Epoch
-              </h1>
-              <p className="text-base text-zinc-400 mt-2">Personal Activity Tracker</p>
-            </div>
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 space-y-6 flex-1 w-full">
+      {/* KPI Metric Summary Bar */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-github-subtle/60 p-3 rounded-xl border border-github-border">
+        <div className="p-3 border-r border-github-border/50">
+          <p className="text-xs uppercase font-mono tracking-wider text-github-muted">Total Time Logged</p>
+          <p className="text-2xl font-black font-mono text-github-bright mt-1">
+            {formatDuration(stats?.total_duration_seconds)}
+          </p>
+        </div>
 
-            <Link
-              href="/activity/new"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-5 h-11 text-sm font-medium text-white shadow-sm hover:bg-orange-500 transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              <span className="hidden min-[400px]:inline">Start Activity</span>
-              <span className="inline min-[400px]:hidden">Start</span>
-            </Link>
-          </header>
+        <div className="p-3 border-r border-github-border/50">
+          <p className="text-xs uppercase font-mono tracking-wider text-github-muted">Daily Average (30d)</p>
+          <p className="text-2xl font-black font-mono text-emerald-400 mt-1">
+            {formatDuration(stats?.daily_average_30d_seconds)}
+          </p>
+        </div>
 
-          {/* Filter Controls Bar */}
-          <div className="space-y-4 mb-8 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 shrink-0 shadow-sm">
-            {/* Search Input (48px height, 15px text, 16px px) */}
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-500">
-                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
+        <div className="p-3 border-r border-github-border/50">
+          <p className="text-xs uppercase font-mono tracking-wider text-github-muted">Consistency Rate</p>
+          <p className="text-2xl font-black font-mono text-github-bright mt-1">
+            {stats?.consistency_rate_30d ?? 0}<span className="text-sm text-github-muted">%</span>
+          </p>
+        </div>
+
+        <div className="p-3">
+          <p className="text-xs uppercase font-mono tracking-wider text-github-muted">Weekly Focus</p>
+          <p className="text-2xl font-black font-mono text-strava mt-1">
+            {formatDuration(stats?.weekly_focus_seconds)}
+          </p>
+        </div>
+      </section>
+
+      {/* Main 2-Column Core Architecture */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* LEFT COLUMN: Filter Bar + GitHub Heatmap + Ranked Subjects + Feed */}
+        <section className="lg:col-span-8 space-y-6">
+          {/* Top Search & Filter Bar */}
+          <div className="bg-github-subtle border border-github-border rounded-xl p-3 flex flex-col sm:flex-row gap-3 items-center justify-between">
+            <div className="relative w-full sm:w-80">
               <input
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search activities by title or description..."
-                className="w-full h-12 pl-11 pr-10 bg-zinc-950 border border-zinc-800 rounded-xl text-[15px] text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                placeholder="Filter telemetry, tags, subjects..."
+                className="w-full bg-[#0d1117] border border-github-border rounded-lg pl-9 pr-8 py-1.5 text-sm text-github-bright placeholder-github-muted focus:border-strava focus:ring-1 focus:ring-strava"
               />
+              <svg className="w-4 h-4 text-github-muted absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+              </svg>
               {searchInput && (
                 <button
                   type="button"
@@ -200,287 +250,312 @@ export function ActivityFeed({
                     setSearchInput('')
                     updateUrlFilters({ q: '' })
                   }}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-zinc-500 hover:text-zinc-300"
+                  className="absolute right-2.5 top-2 text-github-muted hover:text-github-bright"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  &times;
                 </button>
               )}
             </div>
 
-            {/* Filters Row: Subject + Date Range (44px height, 14-15px text, 16px px, gap-4) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Subject Dropdown */}
-              <div className="sm:col-span-1">
-                <label htmlFor="subject_filter" className="sr-only">Filter by Subject</label>
-                <select
-                  id="subject_filter"
-                  value={currentFilters.subject}
-                  onChange={(e) => updateUrlFilters({ subject: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-zinc-800 rounded-xl px-4 text-[14px] sm:text-[15px] text-zinc-200 focus:outline-none focus:border-orange-500 transition-colors appearance-none cursor-pointer"
-                  style={{ backgroundImage: `url('data:image/svg+xml;utf8,<svg fill="%23a1a1aa" height="16" viewBox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>')`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center' }}
-                >
-                  <option value="">All Subjects</option>
-                  {subjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Date From */}
-              <div>
-                <label htmlFor="from_date_filter" className="sr-only">From Date</label>
-                <input
-                  id="from_date_filter"
-                  type="date"
-                  value={currentFilters.from}
-                  onChange={(e) => updateUrlFilters({ from: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-zinc-800 rounded-xl px-4 text-[14px] sm:text-[15px] text-zinc-200 focus:outline-none focus:border-orange-500 transition-colors"
-                  placeholder="From"
-                />
-              </div>
-
-              {/* Date To */}
-              <div>
-                <label htmlFor="to_date_filter" className="sr-only">To Date</label>
-                <input
-                  id="to_date_filter"
-                  type="date"
-                  value={currentFilters.to}
-                  onChange={(e) => updateUrlFilters({ to: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-zinc-800 rounded-xl px-4 text-[14px] sm:text-[15px] text-zinc-200 focus:outline-none focus:border-orange-500 transition-colors"
-                  placeholder="To"
-                />
-              </div>
+            {/* Quick Granularity Filter Chips */}
+            <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+              <button
+                type="button"
+                onClick={() => setGranularityPreset('all')}
+                className={`px-2.5 py-1 text-xs font-mono font-medium rounded-md transition ${
+                  !currentFilters.from ? 'bg-strava text-white shadow-sm' : 'bg-github-canvas text-github-muted hover:text-github-bright border border-github-border'
+                }`}
+              >
+                All Time
+              </button>
+              <button
+                type="button"
+                onClick={() => setGranularityPreset('365d')}
+                className="px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-github-canvas text-github-muted hover:text-github-bright border border-github-border transition"
+              >
+                Past 365D
+              </button>
+              <button
+                type="button"
+                onClick={() => setGranularityPreset('90d')}
+                className="px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-github-canvas text-github-muted hover:text-github-bright border border-github-border transition"
+              >
+                Past 90D
+              </button>
+              <button
+                type="button"
+                onClick={() => setGranularityPreset('month')}
+                className="px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-github-canvas text-github-muted hover:text-github-bright border border-github-border transition"
+              >
+                Month
+              </button>
             </div>
           </div>
 
-          {/* Active Filter Indicators & Results Count */}
-          {hasActiveFilters ? (
-            <div className="mb-8 bg-zinc-900/30 border border-zinc-800/60 rounded-xl p-4.5 shrink-0">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold text-zinc-300">
-                  {totalCount} {totalCount === 1 ? 'activity' : 'activities'} found
-                </span>
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  className="text-sm font-medium text-orange-400 hover:text-orange-300 transition-colors"
-                >
-                  Clear filters
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5">
-                {currentFilters.q.trim() && (
-                  <span className="inline-flex items-center gap-1.5 bg-zinc-800 text-zinc-200 px-3.5 py-1.5 rounded-lg text-sm font-medium border border-zinc-700">
-                    Search: &quot;{currentFilters.q.trim()}&quot;
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchInput('')
-                        updateUrlFilters({ q: '' })
-                      }}
-                      className="text-zinc-400 hover:text-zinc-100 ml-1 text-base leading-none"
-                    >
+          {/* Active Filter Indicators */}
+          {hasActiveFilters && (
+            <div className="bg-github-subtle border border-github-border rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-github-muted">{totalCount} telemetry records match</span>
+                {currentFilters.q && (
+                  <span className="bg-github-canvas border border-github-border px-2 py-0.5 rounded text-github-bright flex items-center gap-1">
+                    Search: &quot;{currentFilters.q}&quot;
+                    <button type="button" onClick={() => updateUrlFilters({ q: '' })}>
                       &times;
                     </button>
                   </span>
                 )}
-
                 {activeSubject && (
-                  <span className="inline-flex items-center gap-2 bg-zinc-800 text-zinc-200 px-3.5 py-1.5 rounded-lg text-sm font-medium border border-zinc-700">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full inline-block"
-                      style={{ backgroundColor: activeSubject.color || '#f97316' }}
-                    />
-                    {activeSubject.name}
-                    <button
-                      type="button"
-                      onClick={() => updateUrlFilters({ subject: '' })}
-                      className="text-zinc-400 hover:text-zinc-100 ml-1 text-base leading-none"
-                    >
+                  <span className="bg-github-canvas border border-github-border px-2 py-0.5 rounded text-github-bright flex items-center gap-1">
+                    Subject: {activeSubject.name}
+                    <button type="button" onClick={() => updateUrlFilters({ subject: '' })}>
                       &times;
                     </button>
                   </span>
                 )}
-
                 {(currentFilters.from || currentFilters.to) && (
-                  <span className="inline-flex items-center gap-1.5 bg-zinc-800 text-zinc-200 px-3.5 py-1.5 rounded-lg text-sm font-medium border border-zinc-700">
-                    {formatDateRangePill()}
-                    <button
-                      type="button"
-                      onClick={() => updateUrlFilters({ from: '', to: '' })}
-                      className="text-zinc-400 hover:text-zinc-100 ml-1 text-base leading-none"
-                    >
+                  <span className="bg-github-canvas border border-github-border px-2 py-0.5 rounded text-github-bright flex items-center gap-1">
+                    Date: {currentFilters.from || '…'} → {currentFilters.to || '…'}
+                    <button type="button" onClick={() => updateUrlFilters({ from: '', to: '' })}>
                       &times;
                     </button>
                   </span>
                 )}
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between pb-4 mb-6 border-b border-zinc-800/60 shrink-0">
-              <h2 className="text-base font-semibold text-zinc-200">Recent Activity</h2>
-            </div>
-          )}
-
-          {/* Feed list or empty state */}
-          {activities.length === 0 ? (
-            hasActiveFilters ? (
-              <div className="w-full flex-1 min-h-[350px] sm:min-h-[420px] lg:min-h-[480px] text-center p-8 sm:p-12 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30 flex flex-col items-center justify-center my-auto">
-                <div className="w-14 h-14 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-400 mb-4">
-                  <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-zinc-200">No matching activities.</h2>
-                <p className="text-[15px] text-zinc-400 mt-2 mb-6 max-w-md leading-relaxed">
-                  Try changing your search terms or clearing your filters.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-6 h-11 text-sm font-semibold text-white hover:bg-orange-500 transition-colors shadow-sm"
-                >
-                  Clear filters
-                </button>
-              </div>
-            ) : (
-              <div className="w-full flex-1 min-h-[400px] sm:min-h-[480px] lg:min-h-[520px] text-center p-10 sm:p-16 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30 flex flex-col items-center justify-center my-auto">
-                <div className="w-16 h-16 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-400 mb-5">
-                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-zinc-100">No activity yet.</h2>
-                <p className="text-[15px] text-zinc-400 mt-2.5 mb-8 max-w-md leading-relaxed">
-                  Start your first activity and begin building your Epoch history.
-                </p>
-                <Link
-                  href="/activity/new"
-                  className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-6 h-11 text-sm font-semibold text-white hover:bg-orange-500 transition-all shadow-sm"
-                >
-                  Start Activity
-                </Link>
-              </div>
-            )
-          ) : (
-            <div className="space-y-4 sm:space-y-5 flex-1">
-              {activities.map((activity) => (
-                <ActivityCard key={activity.id} activity={activity} />
-              ))}
-
-              {hasMore && (
-                <div className="pt-8 text-center">
-                  <button
-                    type="button"
-                    onClick={handleLoadMore}
-                    disabled={isLoadingMore}
-                    className="w-full max-w-xs inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-6 h-11 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white disabled:opacity-50 transition-colors"
-                  >
-                    {isLoadingMore ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        Loading...
-                      </>
-                    ) : (
-                      'Load more'
-                    )}
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="text-strava font-bold hover:underline"
+              >
+                Clear All
+              </button>
             </div>
           )}
-        </main>
 
-        {/* Secondary Sidebar Column (Desktop only) */}
-        <aside className="hidden lg:block lg:col-span-4 space-y-6 sticky top-24">
-          {/* Quick Statistics Overview Card */}
-          {stats && (
-            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-6 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-4">
-                Activity Overview
-              </h2>
-
-              <div className="grid grid-cols-2 gap-3.5 mb-5">
-                <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-4">
-                  <span className="text-xs sm:text-sm text-zinc-400 block font-medium">Total Time</span>
-                  <span className="text-xl sm:text-2xl font-bold font-mono text-orange-400 mt-1.5 block">
-                    {formatDuration(stats.total_duration_seconds)}
+          {/* Contribution Heatmap Matrix Viewport */}
+          <div className="bg-github-subtle border border-github-border rounded-xl p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-github-border/60 gap-2 mb-4">
+              <div>
+                <h2 className="text-base font-bold text-github-bright flex items-center gap-2">
+                  <span>Github Contribution Matrix</span>
+                  <span className="text-xs font-mono bg-strava-light text-strava px-2 py-0.5 rounded font-semibold border border-strava/20">
+                    Year {currentYear}
                   </span>
-                </div>
-
-                <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-4">
-                  <span className="text-xs sm:text-sm text-zinc-400 block font-medium">Active Days</span>
-                  <span className="text-xl sm:text-2xl font-bold text-zinc-100 mt-1.5 block">
-                    {stats.active_days}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-zinc-800/80 text-sm">
-                <Link href="/history" className="text-orange-400 hover:text-orange-300 font-medium transition-colors">
-                  View heatmap &rarr;
-                </Link>
-                <Link href="/profile" className="text-zinc-400 hover:text-zinc-200 transition-colors font-medium">
-                  Profile &rarr;
-                </Link>
+                </h2>
+                <p className="text-xs text-github-muted mt-0.5">Telemetry log of continuous deliberate focus hours</p>
               </div>
             </div>
-          )}
 
-          {/* Top Subjects Sidebar Card */}
-          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-6 shadow-sm">
+            <ContributionHeatmap
+              year={currentYear}
+              historyMap={historyMap}
+              selectedDate={currentFilters.from && currentFilters.from === currentFilters.to ? currentFilters.from : null}
+              onSelectDate={(dStr) => updateUrlFilters({ from: dStr, to: dStr })}
+            />
+          </div>
+
+          {/* Ranking of Subjects (Based on Total Hours Spent) */}
+          <div className="bg-github-subtle border border-github-border rounded-xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
-                Top Subjects
-              </h2>
-              <Link href="/subjects" className="text-sm font-medium text-orange-400 hover:text-orange-300 transition-colors">
-                View all &rarr;
-              </Link>
+              <div>
+                <h2 className="text-base font-bold text-github-bright flex items-center gap-2">
+                  <span>Ranking of Subjects</span>
+                  <span className="text-xs font-mono text-github-muted font-normal">(Based on Hours Spent)</span>
+                </h2>
+              </div>
+              <div className="text-xs font-mono text-github-muted bg-github-canvas px-2.5 py-1 rounded border border-github-border">
+                Segment: <span className="text-strava font-bold">All-Time PR</span>
+              </div>
             </div>
 
-            {topSubjects.length === 0 ? (
-              <p className="text-sm text-zinc-500 py-2">No subjects with logged activity yet.</p>
+            {rankedSubjects.length === 0 ? (
+              <p className="text-xs text-github-muted py-4 text-center font-mono">
+                No telemetry time logged for subjects yet.
+              </p>
             ) : (
-              <div className="space-y-2.5">
-                {topSubjects.slice(0, 5).map((sub) => (
-                  <button
-                    key={sub.id}
-                    type="button"
-                    onClick={() => updateUrlFilters({ subject: sub.id })}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left group ${
-                      currentFilters.subject === sub.id
-                        ? 'border-orange-500/50 bg-orange-500/10'
-                        : 'border-zinc-800/80 bg-zinc-950/40 hover:bg-zinc-800/50 hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: sub.color || '#f97316' }}
-                      />
-                      <span className="text-[14px] sm:text-[15px] font-medium text-zinc-200 group-hover:text-white truncate">
-                        {sub.name}
-                      </span>
+              <div className="space-y-3 font-mono">
+                {rankedSubjects.map((sub, idx) => {
+                  const rankStr = String(idx + 1).padStart(2, '0')
+                  const percent = totalLoggedSeconds > 0 ? ((sub.total_duration_seconds / totalLoggedSeconds) * 100).toFixed(1) : '0.0'
+                  const color = sub.color || '#FC5200'
+
+                  return (
+                    <div
+                      key={sub.id}
+                      onClick={() => updateUrlFilters({ subject: sub.id })}
+                      className="p-3.5 rounded-lg bg-github-canvas border border-github-border/80 hover:border-strava/50 transition cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-strava font-black text-base w-6 text-center">{rankStr}</span>
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                          <span className="font-sans font-bold text-github-bright">{sub.name}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs text-github-muted font-sans hidden sm:inline">
+                            {sub.activity_count} {sub.activity_count === 1 ? 'session' : 'sessions'}
+                          </span>
+                          <span className="font-bold text-github-bright text-base">
+                            {formatDuration(sub.total_duration_seconds)}
+                          </span>
+                          <span className="text-strava font-bold text-xs bg-strava/10 px-2 py-0.5 rounded">
+                            {percent}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-[#1c2128] h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-orange-600 to-strava h-full rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, Math.max(2, parseFloat(percent)))}%` }}
+                        />
+                      </div>
                     </div>
-                    <span className="text-sm font-mono font-medium text-zinc-400 group-hover:text-zinc-300 shrink-0 ml-2">
-                      {formatDuration(sub.total_duration_seconds)}
-                    </span>
-                  </button>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
+
+          {/* Strava Activity Stream Feed */}
+          <div className="bg-github-subtle border border-github-border rounded-xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-github-border/60">
+              <h3 className="text-sm font-bold text-github-bright uppercase tracking-wider flex items-center gap-2">
+                <svg className="w-4 h-4 text-strava fill-current" viewBox="0 0 24 24">
+                  <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7.227 14.172h4.172" />
+                </svg>
+                Recent Telemetry Logs
+              </h3>
+              <span className="text-xs font-mono text-github-muted">Sync: Live</span>
+            </div>
+
+            {activities.length === 0 ? (
+              <div className="p-8 text-center bg-github-canvas rounded-lg border border-dashed border-github-border">
+                <p className="text-sm text-github-muted">No telemetry records found.</p>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="mt-3 inline-flex items-center gap-2 text-xs font-mono text-strava font-bold hover:underline"
+                  >
+                    Clear active filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activities.map((activity) => (
+                  <ActivityCard key={activity.id} activity={activity} />
+                ))}
+
+                {hasMore && (
+                  <div className="pt-4 text-center">
+                    <button
+                      type="button"
+                      onClick={handleLoadMore}
+                      disabled={isLoadingMore}
+                      className="w-full py-2.5 px-4 rounded-lg bg-github-canvas hover:bg-github-subtle text-github-muted hover:text-github-bright border border-github-border font-mono text-xs font-bold transition disabled:opacity-50"
+                    >
+                      {isLoadingMore ? 'Loading telemetry...' : 'Load More Records'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* RIGHT COLUMN: Subjects Side Panel */}
+        <aside className="lg:col-span-4 sticky top-20">
+          <div className="bg-github-subtle border border-github-border rounded-xl p-5 flex flex-col max-h-[calc(100vh-6.5rem)] shadow-lg">
+            {/* Subjects Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-github-border">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-lg font-black text-github-bright tracking-tight">Subjects</h2>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-strava-light text-strava border border-strava/30">
+                  {subjects.length} Active
+                </span>
+              </div>
+              <Link
+                href="/subjects"
+                className="text-github-muted hover:text-github-bright p-1 rounded hover:bg-github-canvas transition"
+                title="View all subjects"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M3 4a1 1 0 011-1h16a1 1 0 011 v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                </svg>
+              </Link>
+            </div>
+
+            {/* Scrollable Subjects List */}
+            <div className="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1 min-h-0">
+              {subjects.length === 0 ? (
+                <p className="text-xs text-github-muted py-4 text-center font-mono">
+                  No subjects created yet.
+                </p>
+              ) : (
+                subjects.map((sub) => {
+                  const color = sub.color || '#FC5200'
+                  const isSelected = currentFilters.subject === sub.id
+
+                  return (
+                    <div
+                      key={sub.id}
+                      onClick={() => updateUrlFilters({ subject: isSelected ? '' : sub.id })}
+                      className={`group p-3 rounded-lg bg-github-canvas border transition cursor-pointer ${
+                        isSelected
+                          ? 'border-strava bg-strava-light/20 shadow-md'
+                          : 'border-github-border hover:border-strava/70 hover:shadow-md'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full mt-1.5 ring-2 shrink-0"
+                            style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}40` }}
+                          />
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-sm text-github-bright group-hover:text-strava transition truncate">
+                              {sub.name}
+                            </h3>
+                            <p className="text-xs text-github-muted font-mono mt-0.5 truncate">
+                              {sub.activity_count} sessions • {formatDuration(sub.total_duration_seconds)} total
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-mono text-emerald-400 font-semibold bg-emerald-950/30 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                          {sub.activity_count > 0 ? 'Active' : 'Idle'}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Bottom "+" Add Subject Button */}
+            <div className="pt-3 border-t border-github-border">
+              <button
+                type="button"
+                onClick={() => setIsAddSubjectOpen(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-github-canvas hover:bg-strava-light text-github-muted hover:text-strava border border-github-border hover:border-strava/50 font-mono text-xs font-bold transition"
+              >
+                <svg className="w-4 h-4 stroke-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 4v16m8-8H4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>Add New Subject</span>
+                <kbd className="text-[10px] bg-[#161b22] px-1.5 py-0.5 rounded border border-github-border text-github-muted">N</kbd>
+              </button>
+            </div>
+          </div>
         </aside>
       </div>
+
+      <CreateSubjectModal
+        isOpen={isAddSubjectOpen}
+        onClose={() => setIsAddSubjectOpen(false)}
+        onSuccess={handleSubjectCreated}
+      />
     </div>
   )
 }
+

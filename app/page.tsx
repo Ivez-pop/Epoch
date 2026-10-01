@@ -1,6 +1,7 @@
 import { searchActivities } from '@/lib/activities'
 import { getSubjects } from '@/lib/subjects'
 import { getProfileStats } from '@/lib/profile'
+import { getActivityHistory } from '@/lib/history'
 import { ActivityFeed } from '@/components/ActivityFeed'
 
 export const revalidate = 0
@@ -20,8 +21,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const subjectId = params.subject || ''
   const from = params.from || ''
   const to = params.to || ''
+  const currentYear = new Date().getFullYear()
 
-  const [searchRes, subjects, stats] = await Promise.all([
+  const [searchRes, subjects, stats, historyMap] = await Promise.all([
     searchActivities({
       query: q,
       subjectId,
@@ -31,6 +33,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     }),
     getSubjects(),
     getProfileStats(),
+    getActivityHistory(currentYear),
   ])
 
   return (
@@ -42,8 +45,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         initialTotalCount={searchRes.totalCount}
         subjects={subjects}
         stats={stats}
+        historyMap={historyMap}
+        currentYear={currentYear}
         currentFilters={{ q, subject: subjectId, from, to }}
       />
     </div>
   )
 }
+
